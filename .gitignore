@@ -19,3 +19,6 @@ Thumbs.db
 desktop.ini
 .vscode/
 .idea/
+
+# Blog drafts and assets (not part of the project)
+blog/

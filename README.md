@@ -14,7 +14,7 @@ The objective is to classify vehicle images into multiple transportation categor
 * **Dataset:** [Vehicle Image Classification](https://www.kaggle.com/datasets/mohamedmaher5/vehicle-classification) (Kaggle, Mohamed Maher, CC0)
 * **Task:** Multiclass Image Classification
 * **Classes:** 7 (Auto Rickshaws, Bikes, Cars, Motorcycles, Planes, Ships, Trains)
-* **Total Images:** 5,590 (800 per class, 790 for Cars). 5,589 are loaded: `ImageFolder` skips the single `.gif` file.
+* **Total Images:** 5,590 files (800 per class, 790 for Cars). `ImageFolder` loads 5,589 (it skips the single `.gif` file), and **5,410 unique images** remain after the duplicate audit.
 
 Images are organized using the PyTorch `ImageFolder` structure.
 
@@ -27,10 +27,11 @@ The dataset contains vehicle images with varying viewpoints, lighting conditions
 The project establishes an end-to-end computer vision benchmark pipeline including:
 
 * Dataset validation and quality control
+* Duplicate audit with perceptual hashing (one image kept per group before splitting)
 * Exploratory Data Analysis (EDA)
 * Class distribution analysis
 * Image preprocessing and augmentation
-* Stratified train / validation / test splitting (70% / 15% / 15%)
+* Stratified train / validation / test splitting (70% / 15% / 15%: 3,787 / 811 / 812 images)
 * Class balancing using `WeightedRandomSampler`
 * Transfer learning with ImageNet-pretrained models
 * Comparative benchmarking of multiple architectures
@@ -79,6 +80,24 @@ For deterministic evaluation (same object scale as the training crops):
 * ImageNet Normalization
 
 These transformations preserve semantic vehicle features while improving robustness to visual variability.
+
+---
+
+## Duplicate Audit
+
+Image datasets collected from the web often contain the same photo several times. Each image is fingerprinted with a perceptual difference hash (dHash), which is robust to resizing and re-compression, and only one image per fingerprint is kept **before** splitting. This guarantees that no photo appears on both sides of the train / test boundary.
+
+| Class | Raw | Unique | Removed |
+|---|---|---|---|
+| Auto Rickshaws | 800 | 677 | 123 |
+| Bikes | 800 | 787 | 13 |
+| Cars | 790 | 781 | 9 |
+| Motorcycles | 800 | 788 | 12 |
+| Planes | 799 | 787 | 12 |
+| Ships | 800 | 795 | 5 |
+| Trains | 800 | 795 | 5 |
+
+162 duplicate groups (341 images) were found, none of them spanning two classes.
 
 ---
 
@@ -167,16 +186,16 @@ Visualization dashboards provide direct comparisons between architectures and hi
 
 ## Results
 
-Results of the executed benchmark (stratified test set of 839 images, best architecture selected by validation macro F1):
+Results of the executed benchmark (stratified test set of 812 unique images, best architecture selected by validation macro F1):
 
 | Architecture | Val Macro F1 | Test Accuracy | Test Macro F1 | Training Time (s) |
 |---|---|---|---|---|
-| **EfficientNet-B0** | **0.976** | **0.968** | **0.968** | 573 |
-| ResNet18 | 0.912 | 0.913 | 0.914 | 812 |
+| **EfficientNet-B0** | **0.973** | **0.969** | **0.969** | 328 |
+| ResNet18 | 0.939 | 0.938 | 0.938 | 323 |
 
-* **EfficientNet-B0** is the best model: ~97% accuracy and macro F1 on unseen data, with every class at an F1 of 0.95 or higher. The lowest recall is for Cars and Motorcycles (0.94).
-* ResNet18 reaches ~91%, and its validation loss oscillates between epochs, which suggests the learning rate (1e-3) is high for fine-tuning this backbone.
-* Training times were measured on an NVIDIA GTX 1650 (4 GB) while other workloads were running on the same machine, so they are indicative only (in isolation ResNet18 is usually faster than EfficientNet-B0).
+* **EfficientNet-B0** is the best model: ~97% accuracy and macro F1 on unseen data (25 errors out of 812), with every class at an F1 of 0.95 or higher. The hardest class is Auto Rickshaws (recall 0.94), mostly confused with Cars; the most frequent single error is Planes predicted as Ships (6 images).
+* ResNet18 reaches ~94%, and its validation loss oscillates between epochs, which suggests the learning rate (1e-3) is high for fine-tuning this backbone. EfficientNet-B0 was still improving at the fifth (last) epoch, so a longer training budget is a natural next step.
+* Training times were measured on an NVIDIA GTX 1650 (4 GB) while other workloads were running on the same machine, so they are indicative only.
 
 ---
 

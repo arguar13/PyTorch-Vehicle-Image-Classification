@@ -15,7 +15,7 @@ El objetivo es clasificar imágenes de vehículos en múltiples categorías de t
 * **Dataset:** [Vehicle Image Classification](https://www.kaggle.com/datasets/mohamedmaher5/vehicle-classification) (Kaggle, Mohamed Maher, CC0)
 * **Tarea:** Clasificación Multiclase de Imágenes
 * **Clases:** 7 (Auto Rickshaws, Bicicletas, Automóviles, Motocicletas, Aviones, Barcos y Trenes)
-* **Total de Imágenes:** 5.590 (800 por clase, 790 en Automóviles). Se cargan 5.589: `ImageFolder` omite el único archivo `.gif`.
+* **Total de Imágenes:** 5.590 archivos (800 por clase, 790 en Automóviles). `ImageFolder` carga 5.589 (omite el único archivo `.gif`) y quedan **5.410 imágenes únicas** tras la auditoría de duplicados.
 
 Las imágenes están organizadas utilizando la estructura `ImageFolder` de PyTorch.
 
@@ -28,10 +28,11 @@ El conjunto de datos contiene imágenes de vehículos con diferentes perspectiva
 El proyecto establece una canalización integral de benchmark para visión por computadora que incluye:
 
 * Validación del conjunto de datos y control de calidad
+* Auditoría de duplicados con hashing perceptual (se conserva una imagen por grupo antes de dividir)
 * Análisis Exploratorio de Datos (EDA)
 * Análisis de distribución de clases
 * Preprocesamiento y aumento de imágenes
-* División estratificada en entrenamiento / validación / test (70% / 15% / 15%)
+* División estratificada en entrenamiento / validación / test (70% / 15% / 15%: 3.787 / 811 / 812 imágenes)
 * Balanceo de clases mediante `WeightedRandomSampler`
 * Transfer Learning con modelos preentrenados en ImageNet
 * Benchmark comparativo de múltiples arquitecturas
@@ -80,6 +81,24 @@ Para una evaluación determinística (misma escala de objeto que los recortes de
 * Normalización ImageNet
 
 Estas transformaciones preservan las características semánticas de los vehículos mientras mejoran la robustez frente a la variabilidad visual.
+
+---
+
+## Auditoría de Duplicados
+
+Los datasets de imágenes recolectados de internet suelen contener la misma foto varias veces. Cada imagen se identifica con un hash perceptual de diferencias (dHash), robusto a redimensionamientos y recompresiones, y se conserva una sola imagen por huella **antes** de dividir los datos. Así se garantiza que ninguna foto aparezca a ambos lados de la frontera entre entrenamiento y test.
+
+| Clase | Original | Únicas | Eliminadas |
+|---|---|---|---|
+| Auto Rickshaws | 800 | 677 | 123 |
+| Bicicletas | 800 | 787 | 13 |
+| Automóviles | 790 | 781 | 9 |
+| Motocicletas | 800 | 788 | 12 |
+| Aviones | 799 | 787 | 12 |
+| Barcos | 800 | 795 | 5 |
+| Trenes | 800 | 795 | 5 |
+
+Se encontraron 162 grupos de duplicados (341 imágenes), ninguno de ellos repartido entre dos clases.
 
 ---
 
@@ -168,16 +187,16 @@ Los paneles de visualización proporcionan comparaciones directas entre arquitec
 
 ## Resultados
 
-Resultados del benchmark ejecutado (conjunto de test estratificado de 839 imágenes; la mejor arquitectura se elige por F1 macro en validación):
+Resultados del benchmark ejecutado (conjunto de test estratificado de 812 imágenes únicas; la mejor arquitectura se elige por F1 macro en validación):
 
 | Arquitectura | F1 Macro Val | Accuracy Test | F1 Macro Test | Tiempo de Entrenamiento (s) |
 |---|---|---|---|---|
-| **EfficientNet-B0** | **0.976** | **0.968** | **0.968** | 573 |
-| ResNet18 | 0.912 | 0.913 | 0.914 | 812 |
+| **EfficientNet-B0** | **0.973** | **0.969** | **0.969** | 328 |
+| ResNet18 | 0.939 | 0.938 | 0.938 | 323 |
 
-* **EfficientNet-B0** es el mejor modelo: ~97% de accuracy y F1 macro sobre datos no vistos, con todas las clases con un F1 de 0.95 o superior. El recall más bajo corresponde a Automóviles y Motocicletas (0.94).
-* ResNet18 alcanza ~91% y su pérdida de validación oscila entre épocas, lo que sugiere que el learning rate (1e-3) es alto para hacer fine-tuning de esta red.
-* Los tiempos de entrenamiento se midieron en una NVIDIA GTX 1650 (4 GB) con otras cargas de trabajo corriendo en el mismo equipo, por lo que son solo orientativos (de forma aislada, ResNet18 suele ser más rápida que EfficientNet-B0).
+* **EfficientNet-B0** es el mejor modelo: ~97% de accuracy y F1 macro sobre datos no vistos (25 errores de 812), con todas las clases con un F1 de 0.95 o superior. La clase más difícil es Auto Rickshaws (recall 0.94), confundida sobre todo con Automóviles; el error individual más frecuente es Aviones predichos como Barcos (6 imágenes).
+* ResNet18 alcanza ~94% y su pérdida de validación oscila entre épocas, lo que sugiere que el learning rate (1e-3) es alto para hacer fine-tuning de esta red. EfficientNet-B0 seguía mejorando en la quinta (última) época, por lo que un presupuesto de entrenamiento mayor es un siguiente paso natural.
+* Los tiempos de entrenamiento se midieron en una NVIDIA GTX 1650 (4 GB) con otras cargas de trabajo corriendo en el mismo equipo, por lo que son solo orientativos.
 
 ---
 
